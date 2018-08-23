@@ -1,5 +1,6 @@
 class Transaction {
   constructor(props) {
+    this.proof = props.proof
     this.signature = props.signature
     this.collection = props.collection
     this.action = props.action
@@ -15,12 +16,13 @@ class Transaction {
 class Block {
   constructor(props = {}) {
     this.transactions = props.transactions || []
-    this.signature = props.signature
+    this.previousHash = props.previousHash
+  }
+
+  toString() {
+    return JSON.stringify(this)
   }
 }
-
-const genesis = new Block()
-const db = [ genesis ]
 
 function newTransaction() {
   const signature = document.getElementById('signature').value
@@ -41,3 +43,14 @@ function newTransaction() {
   console.log(success, transaction)
 }
 
+function displayList(list) {
+  const div = document.getElementById('list')
+  list.forEach(item => div.innerHTML += `<span class="item">${item.toString()}</span>`)
+}
+
+(() => {
+  const genesis = new Block()
+  const db = [ genesis ]
+
+  displayList(db)
+})()
