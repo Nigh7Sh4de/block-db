@@ -19,11 +19,13 @@
   <h1>Welcome to Block DB!</h1>
 
   <form action="javascript:newTransaction();">
-    <div class="input"><input type="text" id="signature" /> Signature </div>
-    <div class="input"><input type="text" id="collection" /> collection </div>
-    <div class="input"><input type="text" id="action" /> action </div>
-    <div class="input"><input type="text" id="id" /> id </div>
-    <textarea id="body" rows="30" cols="70"></textarea>
+    <div class="input"><input type="text" value="0" id="proof" /> Proof </div>
+    <div class="input"><input type="text" value="2" id="publicKey" /> PublicKey </div>
+    <div class="input"><input type="text" value="2" id="signature" /> Signature </div>
+    <div class="input"><input type="text" value="Cars" id="collection" /> collection </div>
+    <div class="input"><input type="text" value="UPDATE" id="action" /> action </div>
+    <div class="input"><input type="text" value="mine" id="id" /> id </div>
+    <textarea id="data" rows="30" cols="70"></textarea>
     <br />
     <input type="submit" />
   </form>
