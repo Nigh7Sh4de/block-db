@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <title>Block DB</title>
+  <style>
+    form .input input {
+      width: 200px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Welcome to Block DB!</h1>
+
+  <form action="javascript:newTransaction();">
+    <div class="input"><input type="text" id="signature" /> Signature </div>
+    <div class="input"><input type="text" id="collection" /> collection </div>
+    <div class="input"><input type="text" id="action" /> action </div>
+    <div class="input"><input type="text" id="id" /> id </div>
+    <textarea id="body" rows="30" cols="70"></textarea>
+    <br />
+    <input type="submit" />
+  </form>
+
+  <script src="index.js" type="text/javascript"></script>
+</body>
+</html>
