@@ -51,6 +51,7 @@ class DB {
     switch(action) {
       case 'CREATE': return this.create(collection, id, body.data)
       case 'UPDATE': return this.update(collection, id, body.data)
+      case 'DELETE': return this.delete(collection, id)
       default: return 1
     }
   }
@@ -65,6 +66,13 @@ class DB {
     if (!this.data[collection]) return 2
     if (!this.data[collection][id]) return 3
     this.data[collection][id].data = data
+    return true
+  }
+
+  delete(collectino, id) {
+    if (!this.data[collection]) return 4
+    if (!this.data[collection][id]) return 5
+    delete this.data[collection][id]
     return true
   }
 }
@@ -102,7 +110,13 @@ function printDB() {
   // const list = Object.values(db.transactions)
   const div = document.getElementById('list')
   let content = ''
-  list.forEach(item => content += `<div class="item">${JSON.stringify(item)}</div>`)
+  for (collection in db.data) {
+    const data = db.data[collection]
+    content += `<div class="item-header">${collection}</div>`
+    for (id in data) {
+      content += `<div class="item">${id} ${JSON.stringify(data[id])}</div>`
+    }
+  }
   div.innerHTML = content
 }
 
@@ -114,6 +128,7 @@ function printDB() {
     body: {
       permissions: {
         UPDATE: [ 2 ],
+        DELETE: [ 2 ],
       },
       data: {},
     }
