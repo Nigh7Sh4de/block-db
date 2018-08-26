@@ -35,28 +35,38 @@ class DB {
   }
 
   addTransaction(transaction) {
+    const { hash } = transaction
+
+    try {
+      this.verify(transaction)
+      this.process(transaction)
+      this.transactions[hash] = transaction
+    }
+    catch(err) {
+      return err
+    }
+    return true
+  }
+
+  verify(transaction) {
     const {
-      proof,
-      signature,
-      publicKey,
-      collection,
       action,
-      id,
-      body,
+      proof,
+      publicKey,
+      signature,
       hash,
     } = transaction
 
-    if (transaction.hash !== this.genesis) {
-      const prevBlock = this.transactions[proof]
-      if (!prevBlock || !prevBlock.verify(signature, publicKey, action)) {
-        return 0
-      }
-    }
-    
-    const result = this.process(transaction)
-    if (result === true) 
-      this.transactions[hash] = transaction
-    return result
+    if (hash === this.genesis)
+      return true
+
+    const prevBlock = this.transactions[proof]
+    if (!prevBlock)
+      throw new Error('No previous block found')
+    if (!prevBlock.verify(signature, publicKey, action))
+      throw new Error('Invalid signature')
+
+    return true
   }
 
   process(transaction) {
@@ -70,27 +80,27 @@ class DB {
       case 'CREATE': return this.create(collection, id, body.data)
       case 'UPDATE': return this.update(collection, id, body.data)
       case 'DELETE': return this.delete(collection, id)
-      default: return 1
+      default: throw Error('Invalid action')
     }
   }
 
   create(collection, id, data) {
     if (!this.data[collection]) this.data[collection] = {}
-    if (this.data[collection][id] !== undefined) return 7
+    if (this.data[collection][id] !== undefined) throw new Error('Id not unique')
     this.data[collection][id] = data
     return true
   }
 
   update(collection, id, data) {
-    if (!this.data[collection]) return 2
-    if (!this.data[collection][id]) return 3
+    if (!this.data[collection]) throw new Error('Collection does not exist')
+    if (!this.data[collection][id]) throw new Error('Id does not exist')
     this.data[collection][id].data = data
     return true
   }
 
-  delete(collectino, id) {
-    if (!this.data[collection]) return 4
-    if (!this.data[collection][id]) return 5
+  delete(collection, id) {
+    if (!this.data[collection]) throw new Error('Collection does not exist')
+    if (!this.data[collection][id]) throw new Error('Id does not exist')
     delete this.data[collection][id]
     return true
   }
@@ -125,8 +135,6 @@ function newTransaction() {
 }
 
 function printDB() {
-  const list = Object.values(db.data)
-  // const list = Object.values(db.transactions)
   const div = document.getElementById('list')
   let content = ''
   for (collection in db.data) {
