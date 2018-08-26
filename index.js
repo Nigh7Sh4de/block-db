@@ -23,11 +23,14 @@ class Transaction {
 }
 
 class DB {
-  constructor(transactions) {
-    this.transactions = transactions || {}
+  constructor(genesis, hash) {
+    this.transactions = genesis || {}
     this.data = {}
 
-    Object.values(this.transactions).forEach(transaction => this.addTransaction(transaction, true))
+    for (hash in genesis) {
+      const transaction = genesis[hash]
+      this.addTransaction(transaction, true)
+    }
   }
 
   addTransaction(transaction, force) {
@@ -46,8 +49,19 @@ class DB {
       return 0
     }
     
-    this.transactions[hash] = transaction
+    const result = this.process(transaction)
+    if (result === true) 
+      this.transactions[hash] = transaction
+    return result
+  }
 
+  process(transaction) {
+    const {
+      action,
+      collection,
+      id,
+      body,
+    } = transaction
     switch(action) {
       case 'CREATE': return this.create(collection, id, body.data)
       case 'UPDATE': return this.update(collection, id, body.data)
@@ -58,6 +72,7 @@ class DB {
 
   create(collection, id, data) {
     if (!this.data[collection]) this.data[collection] = {}
+    if (this.data[collection][id] !== undefined) return 7
     this.data[collection][id] = data
     return true
   }
@@ -122,13 +137,12 @@ function printDB() {
 
 (() => {
   const genesis = new Transaction({
-    action: 'CREATE',
-    collection: 'Cars',
-    id: 'mine',
+    action: '',
+    collection: '',
+    id: '',
     body: {
       permissions: {
-        UPDATE: [ 2 ],
-        DELETE: [ 2 ],
+        CREATE: [ 2 ],
       },
       data: {},
     }
