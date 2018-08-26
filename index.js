@@ -8,39 +8,68 @@ class Transaction {
     this.collection = props.collection
     this.action = props.action
     this.id = props.id
-    this.body = props.body || { permissions: {} }
+    this.data = props.data
+    this.permissions = props.permissions || {}
     this.hash = INDEX++//Math.random(INDEX++).toString().substring(2)
   }
+}
 
-  verify(signature, publicKey, action) {
-    const permission = this.body.permissions[action]
-    return (
-      permission &&
-      permission.indexOf(publicKey) >= 0 &&
-      this.hash + publicKey === signature
-    )
+class Item {
+  constructor(init) {
+    this.transactions = [ init ]
+  }
+
+  toJSON() {
+    const hash = this.transactions[0].hash
+    const data = this.transactions.find(i => i.action === 'UPDATE' || i.action === 'CREATE').data
+    const permissions = this.transactions.find(i => i.action === 'PERMIT' || i.action === 'CREATE').permissions
+    return {
+      hash,
+      data,
+      permissions,
+    }
+  }
+
+  toString() {
+    return JSON.stringify(this.toJSON())
+  }
+
+  push(transaction) {
+    this.transactions.unshift(transaction)
+  }
+
+  verify(transaction) {
+    const {
+      publicKey,
+      signature,
+      action,
+    } = transaction
+    
+    if (this.transactions[0].hash + publicKey !== signature)
+      throw new Error('Invalid signature')
+    const permit = this.transactions.find(i => i.action === 'PERMIT' || i.action === 'CREATE')
+    if (!permit.permissions[action].find(i => i === publicKey))
+      throw new Error('Invalid permissions')
+
+    return true
   }
 }
 
 class DB {
   constructor(chain, hash) {
-    this.transactions = chain || {}
+    if (!chain.length)
+      throw new Error('DB initialisation requires genesis transaction')
+
     this.data = {}
     this.genesis = hash
 
-    for (hash in chain) {
-      const transaction = chain[hash]
-      this.addTransaction(transaction)
-    }
+    chain.forEach(this.addTransaction.bind(this))
   }
 
   addTransaction(transaction) {
-    const { hash } = transaction
-
     try {
       this.verify(transaction)
       this.process(transaction)
-      this.transactions[hash] = transaction
     }
     catch(err) {
       return err
@@ -52,56 +81,68 @@ class DB {
     const {
       action,
       proof,
-      publicKey,
-      signature,
       hash,
+      collection,
+      id,
     } = transaction
 
     if (hash === this.genesis)
       return true
-
-    const prevBlock = this.transactions[proof]
-    if (!prevBlock)
-      throw new Error('No previous block found')
-    if (!prevBlock.verify(signature, publicKey, action))
-      throw new Error('Invalid signature')
-
-    return true
+    else if (action === 'CREATE' && proof === this.genesis)
+      return true
+    else {
+      if (!this.data[collection]) throw new Error('Collection does not exist')
+      if (!this.data[collection][id]) throw new Error('Id does not exist')
+      return this.data[collection][id].verify(transaction)
+    }
   }
 
   process(transaction) {
-    const {
-      action,
-      collection,
-      id,
-      body,
-    } = transaction
+    const { action } = transaction
     switch(action) {
-      case 'CREATE': return this.create(collection, id, body.data)
-      case 'UPDATE': return this.update(collection, id, body.data)
-      case 'DELETE': return this.delete(collection, id)
+      case 'CREATE': return this.create(transaction)
+      case 'UPDATE': return this.update(transaction)
+      case 'DELETE': return this.delete(transaction)
+      case 'PERMIT': return this.permit(transaction)
       default: throw Error('Invalid action')
     }
   }
 
-  create(collection, id, data) {
+  create(transaction) {
+    const {
+      collection,
+      id,
+    } = transaction
     if (!this.data[collection]) this.data[collection] = {}
     if (this.data[collection][id] !== undefined) throw new Error('Id not unique')
-    this.data[collection][id] = data
+    this.data[collection][id] = new Item(transaction)
     return true
   }
 
-  update(collection, id, data) {
-    if (!this.data[collection]) throw new Error('Collection does not exist')
-    if (!this.data[collection][id]) throw new Error('Id does not exist')
-    this.data[collection][id].data = data
+  update(transaction) {
+    const {
+      collection,
+      id,
+    } = transaction
+    this.data[collection][id].push(transaction)
     return true
   }
 
-  delete(collection, id) {
-    if (!this.data[collection]) throw new Error('Collection does not exist')
-    if (!this.data[collection][id]) throw new Error('Id does not exist')
+  delete(transaction) {
+    const {
+      collection,
+      id,
+    } = transaction
     delete this.data[collection][id]
+    return true
+  }
+
+  permit(transaction) {
+    const {
+      collection,
+      id,
+    } = transaction
+    this.data[collection][id].push(transaction)
     return true
   }
 }
@@ -122,10 +163,8 @@ function newTransaction() {
     collection,
     action,
     id,
-    body: {
-      permissions,
-      data,
-    },
+    permissions,
+    data,
   })
 
   const success = db.addTransaction(transaction)
@@ -137,11 +176,10 @@ function newTransaction() {
 function printDB() {
   const div = document.getElementById('list')
   let content = ''
-  for (collection in db.data) {
-    const data = db.data[collection]
+  for (let collection in db.data) {
     content += `<div class="item-header">${collection}</div>`
-    for (id in data) {
-      content += `<div class="item">${id} ${JSON.stringify(data[id])}</div>`
+    for (let id in db.data[collection]) {
+      content += `<div class="item">${id} ${db.data[collection][id]}</div>`
     }
   }
   div.innerHTML = content
@@ -149,17 +187,14 @@ function printDB() {
 
 (() => {
   const genesis = new Transaction({
-    action: '',
+    action: 'CREATE',
     collection: '',
     id: '',
-    body: {
-      permissions: {
-        CREATE: [ 2 ],
-      },
-      data: {},
-    }
+    permissions: {
+      CREATE: [ 2 ],
+    },
   })
-  window.db = new DB({ [genesis.hash]: genesis }, genesis.hash)
+  window.db = new DB([ genesis ], genesis.hash)
 
   printDB()
 })()
