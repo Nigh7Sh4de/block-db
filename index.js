@@ -23,17 +23,18 @@ class Transaction {
 }
 
 class DB {
-  constructor(genesis, hash) {
-    this.transactions = genesis || {}
+  constructor(chain, hash) {
+    this.transactions = chain || {}
     this.data = {}
+    this.genesis = hash
 
-    for (hash in genesis) {
-      const transaction = genesis[hash]
-      this.addTransaction(transaction, true)
+    for (hash in chain) {
+      const transaction = chain[hash]
+      this.addTransaction(transaction)
     }
   }
 
-  addTransaction(transaction, force) {
+  addTransaction(transaction) {
     const {
       proof,
       signature,
@@ -44,9 +45,12 @@ class DB {
       body,
       hash,
     } = transaction
-    const prevBlock = this.transactions[proof]
-    if (!force && (!prevBlock || !prevBlock.verify(signature, publicKey, action))) {
-      return 0
+
+    if (transaction.hash !== this.genesis) {
+      const prevBlock = this.transactions[proof]
+      if (!prevBlock || !prevBlock.verify(signature, publicKey, action)) {
+        return 0
+      }
     }
     
     const result = this.process(transaction)
@@ -147,7 +151,7 @@ function printDB() {
       data: {},
     }
   })
-  window.db = new DB({ [genesis.hash]: genesis })
+  window.db = new DB({ [genesis.hash]: genesis }, genesis.hash)
 
   printDB()
 })()
