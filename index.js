@@ -1,22 +1,35 @@
-let INDEX = 0
-
 class Transaction {
   constructor(props = {}) {
-    this.proof = parseInt(props.proof)
-    this.publicKey = parseInt(props.publicKey)
-    this.signature = parseInt(props.signature)
     this.collection = props.collection
-    this.action = props.action
     this.id = props.id
+    this.proof = props.proof
+    this.entity = props.entity
+    this.signature = props.signature
+    this.action = props.action
     this.data = props.data
-    this.permissions = props.permissions || {}
-    this.hash = INDEX++//Math.random(INDEX++).toString().substring(2)
+    this.permissions = props.permissions
+    
+    const nonce = new Int8Array(256)
+    crypto.getRandomValues(nonce)
+    const _hash = `
+      ${nonce}
+      ${this.collection}
+      ${this.id}
+      ${this.proof}
+      ${this.entity}
+      ${this.signature}
+      ${this.action}
+      ${JSON.stringify(this.data)}
+      ${JSON.stringify(this.permissions)}
+    `
+    this.hash = sha256(_hash)
   }
 }
 
 class Item {
   constructor(init) {
     this.transactions = [ init ]
+    this.id = init.hash
   }
 
   toJSON() {
@@ -38,30 +51,41 @@ class Item {
     this.transactions.unshift(transaction)
   }
 
-  verify(transaction) {
+  verifySignature(transaction) {
     const {
-      publicKey,
+      entity,
       signature,
-      action,
     } = transaction
     
-    if (this.transactions[0].hash + publicKey !== signature)
+    if (this.id + entity !== signature) {
       throw new Error('Invalid signature')
-    const permit = this.transactions.find(i => i.action === 'PERMIT' || i.action === 'CREATE')
-    if (!permit.permissions[action].find(i => i === publicKey))
-      throw new Error('Invalid permissions')
+    }
+    
+    return true
+  }
 
+  verifyPermissions(transaction) {
+    const {
+      action,
+      entity,
+    } = transaction
+
+    const permit = this.transactions.find(i => i.action === 'PERMIT' || i.action === 'CREATE')
+    if (!permit.permissions[action].find(i => i === entity)) {
+      throw new Error('Invalid permissions')
+    }
+    
     return true
   }
 }
 
 class DB {
-  constructor(chain, hash) {
+  constructor(chain) {
     if (!chain.length)
       throw new Error('DB initialisation requires genesis transaction')
 
     this.data = {}
-    this.genesis = hash
+    this.genesis = new Item(chain.shift())
 
     chain.forEach(this.addTransaction.bind(this))
   }
@@ -80,25 +104,24 @@ class DB {
   verify(transaction) {
     const {
       action,
-      proof,
-      hash,
       collection,
       id,
     } = transaction
 
-    if (hash === this.genesis)
-      return true
-    else if (action === 'CREATE' && proof === this.genesis)
-      return true
-    else {
+    if (action === 'CREATE') {
+      return this.genesis.verifySignature(transaction)
+    } else {
       if (!this.data[collection]) throw new Error('Collection does not exist')
       if (!this.data[collection][id]) throw new Error('Id does not exist')
-      return this.data[collection][id].verify(transaction)
+
+      this.data[collection][id].verifySignature(transaction)
+      this.data[collection][id].verifyPermissions(transaction)
     }
   }
 
   process(transaction) {
     const { action } = transaction
+
     switch(action) {
       case 'CREATE': return this.create(transaction)
       case 'UPDATE': return this.update(transaction)
@@ -115,7 +138,9 @@ class DB {
     } = transaction
     if (!this.data[collection]) this.data[collection] = {}
     if (this.data[collection][id] !== undefined) throw new Error('Id not unique')
+
     this.data[collection][id] = new Item(transaction)
+
     return true
   }
 
@@ -124,7 +149,9 @@ class DB {
       collection,
       id,
     } = transaction
+
     this.data[collection][id].push(transaction)
+
     return true
   }
 
@@ -133,7 +160,9 @@ class DB {
       collection,
       id,
     } = transaction
+
     delete this.data[collection][id]
+
     return true
   }
 
@@ -142,14 +171,16 @@ class DB {
       collection,
       id,
     } = transaction
+
     this.data[collection][id].push(transaction)
+    
     return true
   }
 }
 
 function newTransaction() {
   const proof = document.getElementById('proof').value
-  const publicKey = document.getElementById('publicKey').value
+  const entity = document.getElementById('entity').value
   const signature = document.getElementById('signature').value
   const collection = document.getElementById('collection').value
   const action = document.getElementById('action').value
@@ -158,7 +189,7 @@ function newTransaction() {
   const permissions = JSON.parse(document.getElementById('permissions').value)
   const transaction = new Transaction({
     proof,
-    publicKey,
+    entity,
     signature,
     collection,
     action,
@@ -175,7 +206,7 @@ function newTransaction() {
 
 function printDB() {
   const div = document.getElementById('list')
-  let content = ''
+  let content = `${db.genesis}`
   for (let collection in db.data) {
     content += `<div class="item-header">${collection}</div>`
     for (let id in db.data[collection]) {
@@ -190,11 +221,8 @@ function printDB() {
     action: 'CREATE',
     collection: '',
     id: '',
-    permissions: {
-      CREATE: [ 2 ],
-    },
   })
-  window.db = new DB([ genesis ], genesis.hash)
+  window.db = new DB([ genesis ])
 
   printDB()
 })()
