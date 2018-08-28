@@ -2,20 +2,18 @@ class Transaction {
   constructor(props = {}) {
     this.collection = props.collection
     this.id = props.id
-    this.proof = props.proof
     this.entity = props.entity
     this.signature = props.signature
     this.action = props.action
     this.data = props.data
     this.permissions = props.permissions
-    
+
     const nonce = new Int8Array(256)
     crypto.getRandomValues(nonce)
     const _hash = `
       ${nonce}
       ${this.collection}
       ${this.id}
-      ${this.proof}
       ${this.entity}
       ${this.signature}
       ${this.action}
@@ -29,7 +27,6 @@ class Transaction {
 class Item {
   constructor(init) {
     this.transactions = [ init ]
-    this.id = init.hash
   }
 
   toJSON() {
@@ -57,7 +54,10 @@ class Item {
       signature,
     } = transaction
     
-    if (this.id + entity !== signature) {
+    const key = new JSEncrypt()
+    key.setKey(entity)
+
+    if (!key.verify(this.transactions[0].hash, signature, sha256)) {
       throw new Error('Invalid signature')
     }
     
@@ -179,7 +179,6 @@ class DB {
 }
 
 function newTransaction() {
-  const proof = document.getElementById('proof').value
   const entity = document.getElementById('entity').value
   const signature = document.getElementById('signature').value
   const collection = document.getElementById('collection').value
@@ -188,7 +187,6 @@ function newTransaction() {
   const data = document.getElementById('data').value
   const permissions = JSON.parse(document.getElementById('permissions').value)
   const transaction = new Transaction({
-    proof,
     entity,
     signature,
     collection,
